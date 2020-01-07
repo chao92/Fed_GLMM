@@ -82,7 +82,8 @@ while (epsilon > threshold) {
       # get A1 from clients, added elementwise and pass to MH function
       A_sum = rowSums(A1,dims = 2)
       # get Z1_MH[,i]
-      Z1_MH[,i] = MH(A_sum, Z1, newZ1, K, burnin, n)
+      Z1 = MH(A_sum, Z1, newZ1, K, burnin, n)
+      Z1_MH[,i] = Z1
       A1 <- array(10^ (-20), c(1, n, n_user))
       ready <- 1
       #cat("server finish i=", i, "\n")

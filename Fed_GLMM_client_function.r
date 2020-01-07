@@ -85,6 +85,7 @@ Fed_GLMM_client <-
                 Sys.sleep(0.1)
               }
               newZ1 = evalServer6(con, "newZ1=newZ1")
+              Z1 = evalServer6(con, "Z1=Z1")
               A1 = rep(0, n)
               for (j in c(1:n)) {
                 num_pat = dim(X[[j]])[1]
