@@ -172,7 +172,8 @@ MH <- function(beta, X, Y, K, burnin, sigma,n){
 
     
     Z1 <- ifelse(log(runif(n)) > A1, Z1, newZ1)
-    #print(Z1)
+    print("Z1")
+    print(Z1)
     t = ifelse(Z1 == newZ1, yes = 1, 0)
     sum = sum+sum(t)
     sum_t = sum_t + n
@@ -182,7 +183,8 @@ MH <- function(beta, X, Y, K, burnin, sigma,n){
   print(sum_t)
   #Z1_MH变为之后要用的samples 
   Z1_MH <- Z1_MH[,-c(1:burnin)] 
-  
+  print("z1_MH")
+  print(dim(Z1_MH))
   return(Z1_MH)
 }
 
