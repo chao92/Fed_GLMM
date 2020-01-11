@@ -1,30 +1,52 @@
 setwd("~/Desktop/Fed_GLMM 1024")
-
+require(Rlab)
 ## creating data
 #n个病人一共
 #m个feature
 #r.e有K种
 #生成数据函数
-generate_data <- function(n = 150,
-                          m = 4,
-                          beta = c(1, 3, 9, 7),
+generate_data <- function(n = 300,
+                          m = 100,
+                          beta = c(-49:50)/100,
                           K = 10,
-                          sigma1 = 3) {
-  X1 = matrix(rnorm(n * m), n, m)
-  r_e = round(runif(n, 1, K))
+                          sigma1 = 3,
+                          p = 0.5) {
   
-  X = rep(list(matrix(0, 1, m)), K)
-  Y = rep(list(matrix(0, 1, 1)), K)
-  
-  for (i in c(1:n)) {
-    X[[r_e[i]]] = rbind(X[[r_e[i]]], unlist(X1[i,]))
-    Y[[r_e[i]]] = rbind(Y[[r_e[i]]], c(0))
+  pre_X1 = rep(0,n*m)
+  for(v in c(1:(n*m))){
+    genome_seq = rbern(2, p)
+    if(genome_seq[1] == 0){
+      if(genome_seq[2] == 0){
+        pre_X1[v] = 0
+      }
+    }
+    if(genome_seq[1] == 1){
+      if(genome_seq[2] == 1){
+        pre_X1[v] = 2
+      }
+    }
+    else{
+      pre_X1[v] = 1
+    }
   }
+  X1 = matrix(pre_X1,n,m)
   
-  for (i in c(1:K)) {
-    X[[i]] = X[[i]][-1,]
+  r_e = round(runif(n,1,K))
+  
+  X = rep(list(matrix(0,1,m)),K)
+  Y = rep(list(matrix(0,1,1)),K)
+  
+  for(i in c(1:n)){
+    
+    X[[r_e[i]]] = rbind(X[[r_e[i]]],unlist(X1[i,]))
+    Y[[r_e[i]]] = rbind(Y[[r_e[i]]],c(0))
+  }    
+  
+  for(i in c(1:K)){
+    X[[i]] = X[[i]][-1,] 
     Y[[i]] = Y[[i]][-1,]
   }
+  
   #制造一个与X同结构的 y放label
   
   Z1 = rnorm(K, 0, sigma1)
@@ -50,7 +72,7 @@ Z_index
 
 # calcuate the real_parameters by taking the Z1 as know in advance
 
-real_parameters <- function(X, Y, Z1, initial_beta = c(1, 1, 3, 2)) {
+real_parameters <- function(X, Y, Z1, initial_beta = c(-49:50)/100) {
   num_fe = dim(X[[1]])[2]
   
   K = length(Z1)
@@ -110,7 +132,7 @@ save.image(file="cur_session.RData")
 # method 1
 # cut data into two parts both has 10 random effects 
 K = 10
-m = 4
+m = 100
 X_1 = rep(list(matrix(0, 1, m)), K)
 X_2 = rep(list(matrix(0, 1, m)), K)
 
@@ -136,39 +158,39 @@ save(X_2, Y_2, file="client2_latest.RData")
 
 # method 2
 # cut data into two parts
-K = 10
-m = 4
-part_size = K/2
-Part1_X = rep(list(matrix(0, 1, m)), part_size)
-Part2_X = rep(list(matrix(0, 1, m)), part_size)
-
-Part1_Y = rep(list(matrix(0, 1, 1)), part_size)
-Part2_Y = rep(list(matrix(0, 1, 1)), part_size)
-for (i in c(1:part_size)) {
-  Part1_X[i] = X[i]
-  Part2_X[i] = X[i+part_size]
-  Part1_Y[i] = Y[i]
-  Part2_Y[i] = Y[i+part_size]
-}
-
-save(Part1_X, Part1_Y, file="client1.RData")
-save(Part2_X, Part2_Y, file="client2.RData")
-
-
-# add zero for part_1 and part2
-tmp = matrix(0,1,1)
-for (i in 6:10) {
-  Part1_X[[i]] = tmp
-  Part1_Y[[i]] = tmp
-}
-for (i in 1:5) {
-  Part2_X[[i+5]] = Part2_X[[i]]
-  Part2_Y[[i+5]] = Part2_Y[[i]]
-  Part2_X[[i]] = tmp
-  Part2_Y[[i]] = tmp 
-}
-
-save(Part1_X, Part1_Y, file="client1_padding.RData")
-save(Part2_X, Part2_Y, file="client2_padding.RData")
+# K = 10
+# m = 4
+# part_size = K/2
+# Part1_X = rep(list(matrix(0, 1, m)), part_size)
+# Part2_X = rep(list(matrix(0, 1, m)), part_size)
+# 
+# Part1_Y = rep(list(matrix(0, 1, 1)), part_size)
+# Part2_Y = rep(list(matrix(0, 1, 1)), part_size)
+# for (i in c(1:part_size)) {
+#   Part1_X[i] = X[i]
+#   Part2_X[i] = X[i+part_size]
+#   Part1_Y[i] = Y[i]
+#   Part2_Y[i] = Y[i+part_size]
+# }
+# 
+# save(Part1_X, Part1_Y, file="client1.RData")
+# save(Part2_X, Part2_Y, file="client2.RData")
+# 
+# 
+# # add zero for part_1 and part2
+# tmp = matrix(0,1,1)
+# for (i in 6:10) {
+#   Part1_X[[i]] = tmp
+#   Part1_Y[[i]] = tmp
+# }
+# for (i in 1:5) {
+#   Part2_X[[i+5]] = Part2_X[[i]]
+#   Part2_Y[[i+5]] = Part2_Y[[i]]
+#   Part2_X[[i]] = tmp
+#   Part2_Y[[i]] = tmp 
+# }
+# 
+# save(Part1_X, Part1_Y, file="client1_padding.RData")
+# save(Part2_X, Part2_Y, file="client2_padding.RData")
 
 

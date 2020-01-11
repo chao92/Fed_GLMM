@@ -19,18 +19,20 @@ taskid <- "GLMMtest"
 passwords <- c("", "")
 portNumber <- 8999
 
-
+sleep_time = 0.1
 # parameters or computing coefficient
-num_fe <- 4
+num_fe <- 100
 epsilon <- 1e10
 threshold <- 0.05
-beta <- c(1, 2, 4, 2)
+beta <- c(-49:50)/100
 sigma1 <- 3
 beta_list <- matrix(beta, num_fe, 1)
 sigma1_list <- c(sigma1)
 step <- 1
-K <- 1000
-burnin <- 300
+K <- 400
+burnin <- 120
+#K <- 1000
+# burnin <- 300
 n = 10 # sampling size for Metropolis Hasting
 
 # for receiving Hessian matrix from clients
@@ -65,7 +67,7 @@ while (epsilon > threshold) {
     Z1_list_flag <- 0
     for (i in 1:(K + burnin)){
       #cat("server i = ", i, "\n")
-      if (i%%200 == 0){
+      if (i%%10 == 0){
           cat("server: i = ", i, "\n")
       }
       newZ1 = rnorm(n, mean = 0, sd = sigma1)
@@ -74,7 +76,7 @@ while (epsilon > threshold) {
         #cat("Waiting for client ID is", receive_ind)
         while (mean(abs(A1[,,receive_ind]))==10^(-20)) {
           #cat("waiting")
-          Sys.sleep(0.1)
+          Sys.sleep(sleep_time)
         }
         #cat("A1[,,",receive_ind,"] is ", A1[,,receive_ind], "\n")
       }
@@ -104,7 +106,7 @@ while (epsilon > threshold) {
       #cat("f1 is", f1[,,receive_ind])
       while (mean(abs(H[,,receive_ind]))==10^(-20) || mean(abs(f1[,,receive_ind]))==10^(-20)) {
         #cat("waiting")
-        Sys.sleep(0.1)
+        Sys.sleep(sleep_time)
       }
       #cat("Received H is", H[,,receive_ind])
       #cat("Received f1 is ", f1[,,receive_ind])
@@ -134,6 +136,7 @@ while (epsilon > threshold) {
     cat("Iteration=", iter, "\n")
     cat("beta=", beta,"\n")
     cat("sigma=", sigma1, "\n")
+    flush.console()
   }
   
   epsilon <-
@@ -143,6 +146,7 @@ while (epsilon > threshold) {
   sigma1_list[step + 1] <- sigma1
   step <- step + 1
   cat("Step is", step, "\n")
+  flush.console()
 }
 
 # print the final result
@@ -157,10 +161,10 @@ for (receive_ind in 1:n_user)
 {
   while (stop_connection[receive_ind] != 1)
   {
-    Sys.sleep(0.1)
+    Sys.sleep(sleep_time)
   }
 }
 
-Sys.sleep(1)
+Sys.sleep(sleep_time)
 stopSocketServer(port = portNumber)
 # endof Fed_GLMM_server

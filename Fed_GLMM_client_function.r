@@ -51,6 +51,7 @@ Fed_GLMM_client <-
     iter <- 0
     step <- 1
     
+    sleep_time = 0.1
     epsilon <- 1e10
     threshold <- 0.05
     
@@ -72,17 +73,17 @@ Fed_GLMM_client <-
         for (i in 1:(K + burnin)) {
           # computing A1 on local
           #cat("client i = ", i, "\n")
-          if (i%%200 == 0){
+          if (i%%10 == 0){
            cat("client: i = ", i, "\n")
           }
           # processing client one by one
           repeat {
-            Sys.sleep(0.1)
+            Sys.sleep(sleep_time)
             if (evalServer6(con, "i=i") == i) {
               #cat("start i = ", i, "\n")
               # waiting for server processing
               while (evalServer6(con, "receive_ind=receive_ind") < clientID) {
-                Sys.sleep(0.1)
+                Sys.sleep(sleep_time)
               }
               newZ1 = evalServer6(con, "newZ1=newZ1")
               Z1 = evalServer6(con, "Z1=Z1")
@@ -103,7 +104,7 @@ Fed_GLMM_client <-
               
               ready = evalServer6(con, "ready=ready")
               while (ready == 0) {
-                Sys.sleep(0.1)
+                Sys.sleep(sleep_time)
                 ready = evalServer6(con, "ready=ready")
               }
               #cat("server finished i=", i, "\n")
@@ -114,7 +115,7 @@ Fed_GLMM_client <-
         
         Z1_list_flag = evalServer6(con, "Z1_list_flag=Z1_list_flag")
         while (Z1_list_flag == 0) {
-          Sys.sleep(0.1)
+          Sys.sleep(sleep_time)
           Z1_list_flag = evalServer6(con, "Z1_list_flag=Z1_list_flag")
         }
         #cat("Z1_list_flag = ", Z1_list_flag, "\n")
@@ -123,7 +124,7 @@ Fed_GLMM_client <-
         # computing Hessian matrix locally
         H = matrix(0, num_fe, num_fe)
         for (i in c(1:num_fe)) {
-          for (j in c(1:num_fe)) {
+          for (j in c(i:num_fe)) {
             f2 = rep(0, K)
             for (mc in c(1:K)) {
               temp = rep(0, n)
@@ -139,7 +140,8 @@ Fed_GLMM_client <-
               f2[mc] = sum(temp)
             }
             H[i, j] = sum(f2)
-            cat("H[",i,j,"]=",sum(f2))
+            H[j, i] = H[i, j]
+            #cat("H[",i,j,"]=",sum(f2))
           }
         }
         #cat("finish computing Hessian matrix", H)
@@ -164,7 +166,7 @@ Fed_GLMM_client <-
         }
         #cat("finish computing f1 ", f1)
         while (evalServer6(con, "receive_ind=receive_ind") < clientID) {
-          Sys.sleep(0.1)
+          Sys.sleep(sleep_time)
         }
         evalServer6(con, H[, , receive_ind], H)
         evalServer6(con, f1[, , receive_ind], f1)
@@ -177,6 +179,7 @@ Fed_GLMM_client <-
         epi = evalServer6(con, "epi=epi")
         iter = newiter
         cat("Iteration=", iter, "\n")
+        flush.console()
       }
       
       # Get the step
@@ -186,11 +189,12 @@ Fed_GLMM_client <-
       }
       step = newstep
       cat("Step=", step, "\n")
+      flush.console()
     }
     
     while (evalServer6(con, "receive_ind=receive_ind") < clientID)
     {
-      Sys.sleep(0.1)
+      Sys.sleep(sleep_time)
     }
     
     evalServer6(con, stop_connection[receive_ind], 1)
@@ -198,7 +202,7 @@ Fed_GLMM_client <-
     res <- list(beta, sigma)
     names(res) <- c("coefficients", "sigma")
     cat("result is", res)
-    
+    flush.console()
   }
 
 #username <- "dbmiclient3"
