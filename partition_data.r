@@ -1,10 +1,7 @@
 setwd("~/Desktop/Fed_GLMM 1024")
-load("~/Desktop/Fed_GLMM 1024/X.Rdata")
-load("~/Desktop/Fed_GLMM 1024/Y.Rdata")
-load("~/Desktop/Fed_GLMM 1024/Z.Rdata")
-X = alldata[[1]]
-Y = alldata[[2]]
-Z = alldata[[3]]
+X = load("~/Desktop/Fed_GLMM 1024/X.Rdata")
+Y = load("~/Desktop/Fed_GLMM 1024/Y.Rdata")
+Z = load("~/Desktop/Fed_GLMM 1024/Z.Rdata")
 
 # calcuate the real_parameters by taking the Z1 as know in advance
 
