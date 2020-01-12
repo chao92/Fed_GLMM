@@ -53,7 +53,7 @@ Fed_GLMM_client <-
     
     sleep_time = 0.1
     epsilon <- 1e10
-    threshold <- 0.05
+    threshold <- 0.1
     
     # get parameters from server
     num_fe = evalServer6(con, "num_fe=num_fe")
@@ -73,7 +73,7 @@ Fed_GLMM_client <-
         for (i in 1:(K + burnin)) {
           # computing A1 on local
           #cat("client i = ", i, "\n")
-          if (i%%10 == 0){
+          if (i%%200 == 0){
            cat("client: i = ", i, "\n")
           }
           # processing client one by one

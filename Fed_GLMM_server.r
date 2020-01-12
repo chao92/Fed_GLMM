@@ -1,14 +1,22 @@
 require(tcltk)
 require(svMisc)
 require(svSocket)
-
+require(Metrics)
 MH <- function(A1, Z1, newZ1, K, burnin, n) {
  
     # update Z1
     Z1 <- ifelse(log(runif(n)) > A1, Z1, newZ1)
     #Z1_MH[, i] <- Z1
     #cat("Z1_MH[,",i,"]=", Z1)
-    return(Z1)
+    sum_t = 0
+    sum_t = sum(ifelse(Z1 == newZ1, yes = 1, 0))
+    # print("z1")
+    # print(Z1)
+    # print("newz1")
+    # print(newZ1)
+    # print("sum_t")
+    # print(sum_t)
+    return(list(Z1, sum_t))
 }
 
 # authenticat two clients with task ID and password
@@ -19,18 +27,23 @@ taskid <- "GLMMtest"
 passwords <- c("", "")
 portNumber <- 8999
 
+load("~/Desktop/Fed_GLMM 1024/ground_truth_beta.RData")
+ground_truth = true_beta
+
+
+epsilon <- 1e10
+threshold <- 0.1
 sleep_time = 0.1
 # parameters or computing coefficient
-num_fe <- 100
-epsilon <- 1e10
-threshold <- 0.05
-beta <- c(-49:50)/100
+num_fe <- 30
+beta <- c(-19:10)/50
 sigma1 <- 3
+
 beta_list <- matrix(beta, num_fe, 1)
 sigma1_list <- c(sigma1)
 step <- 1
-K <- 400
-burnin <- 120
+K <- 10
+burnin <- 2
 #K <- 1000
 # burnin <- 300
 n = 10 # sampling size for Metropolis Hasting
@@ -65,9 +78,10 @@ while (epsilon > threshold) {
     Z1_MH = array(0, dim = c(n, K + burnin))
     Z1 = rnorm(n, 0, sigma1)
     Z1_list_flag <- 0
+    sum_sum_t = 0
     for (i in 1:(K + burnin)){
       #cat("server i = ", i, "\n")
-      if (i%%10 == 0){
+      if (i%%200 == 0){
           cat("server: i = ", i, "\n")
       }
       newZ1 = rnorm(n, mean = 0, sd = sigma1)
@@ -84,14 +98,22 @@ while (epsilon > threshold) {
       # get A1 from clients, added elementwise and pass to MH function
       A_sum = rowSums(A1,dims = 2)
       # get Z1_MH[,i]
-      Z1 = MH(A_sum, Z1, newZ1, K, burnin, n)
+      Z1_sum_t = MH(A_sum, Z1, newZ1, K, burnin, n)
+      # print("z1")
+      # print(Z1_sum_t[[1]])
+      # print("sum_t")
+      # print(Z1_sum_t[[2]])
+      sum_t = Z1_sum_t[[2]]
+      sum_sum_t = sum_sum_t + sum_t
+      Z1 = Z1_sum_t[[1]]
       Z1_MH[,i] = Z1
       A1 <- array(10^ (-20), c(1, n, n_user))
       ready <- 1
       #cat("server finish i=", i, "\n")
       receive_ind <- 0
     }
-    
+    cat("SUM_SUM_t is", "\n")
+    print(sum_sum_t)
     Z1_list = Z1_MH[,-c(1:burnin)]
     #cat("Z1_list in Server is ", Z1_list, "\n")
     Z1_list_flag <- 1
@@ -135,6 +157,8 @@ while (epsilon > threshold) {
     iter <- iter + 1
     cat("Iteration=", iter, "\n")
     cat("beta=", beta,"\n")
+    cat("MSE = ", "\n")
+    print(mse(ground_truth, beta))
     cat("sigma=", sigma1, "\n")
     flush.console()
   }
