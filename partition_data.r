@@ -1,11 +1,11 @@
-setwd("~/Desktop/Fed_GLMM 1024")
-X = load("~/Desktop/Fed_GLMM 1024/X.Rdata")
-Y = load("~/Desktop/Fed_GLMM 1024/Y.Rdata")
-Z = load("~/Desktop/Fed_GLMM 1024/Z.Rdata")
+setwd("/home/huthvincent/Desktop/glmm/Fed_GLMM")
+load("/home/huthvincent/Desktop/glmm/Fed_GLMM/X.Rdata")
+load("/home/huthvincent/Desktop/glmm/Fed_GLMM/Y.Rdata")
+load("/home/huthvincent/Desktop/glmm/Fed_GLMM/Z.Rdata")
 
 # calcuate the real_parameters by taking the Z1 as know in advance
-
-real_parameters <- function(X, Y, Z1, initial_beta = c(-19:10)/100) {
+options(digits = 15)
+real_parameters <- function(X, Y, Z1, initial_beta = rnorm(100,0,0.01)) {
   num_fe = dim(X[[1]])[2]
   
   K = length(Z1)
@@ -15,7 +15,7 @@ real_parameters <- function(X, Y, Z1, initial_beta = c(-19:10)/100) {
   epi <- 2
   
   #这里的f2就是likelihood l 对 beta的二阶导
-  while (epi > 1e-2) {
+  while (epi > 1e-5) {
     H = matrix(0, num_fe, num_fe)
     for (i in c(1:num_fe)) {
       for (j in c(1:num_fe)) {
@@ -66,7 +66,7 @@ save(true_sigma,file="ground_truth_sigma.RData")
 # method 1
 # cut data into two parts both has 10 random effects 
 K = 10
-m = 30
+m = 100
 X_1 = rep(list(matrix(0, 1, m)), K)
 X_2 = rep(list(matrix(0, 1, m)), K)
 

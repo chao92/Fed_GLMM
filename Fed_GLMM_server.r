@@ -2,6 +2,7 @@ require(tcltk)
 require(svMisc)
 require(svSocket)
 require(Metrics)
+options(digits = 15)
 MH <- function(A1, Z1, newZ1, K, burnin, n) {
  
     # update Z1
@@ -18,7 +19,6 @@ MH <- function(A1, Z1, newZ1, K, burnin, n) {
     # print(sum_t)
     return(list(Z1, sum_t))
 }
-
 # authenticat two clients with task ID and password
 u_username = ""
 usernames <- c("client1", "client2")
@@ -27,23 +27,23 @@ taskid <- "GLMMtest"
 passwords <- c("", "")
 portNumber <- 8999
 
-load("~/Desktop/Fed_GLMM 1024/ground_truth_beta.RData")
+load("~/Downloads/Fed_GLMM/ground_truth_beta.RData")
 ground_truth = true_beta
 
 
 epsilon <- 1e10
-threshold <- 0.1
+threshold <- 0.005
 sleep_time = 0.1
 # parameters or computing coefficient
-num_fe <- 30
-beta <- c(-19:10)/50
-sigma1 <- 3
+num_fe <- 100
+beta <- rnorm(100,0,0.001)
+sigma1 <- 0.4
 
 beta_list <- matrix(beta, num_fe, 1)
 sigma1_list <- c(sigma1)
 step <- 1
 K <- 10
-burnin <- 2
+burnin <- 590
 #K <- 1000
 # burnin <- 300
 n = 10 # sampling size for Metropolis Hasting
@@ -70,6 +70,8 @@ iter <- 0
 # epsilon controls whether the beta and sigma are converged
 while (epsilon > threshold) {
   
+  # the start time
+  ptm <- proc.time()
   # epi controls whether the beta is converged
   epi <- 1
   while (epi > 0.1) {
@@ -135,11 +137,12 @@ while (epsilon > threshold) {
     }
     
     H_sum = rowSums(H,dims = 2)
-    #cat("H_Sum is", H_sum)
+    cat("H_Sum is", H_sum)
     H_sum = matrix(H_sum, num_fe, num_fe)
     H_inverse = solve(H_sum)
-    #cat("H_inverse", H_inverse)
+    cat("H_inverse", H_inverse)
     if (det(H_inverse) == 0) {
+      cat("H_inverse is 0", "\n")
       break
     }
    
@@ -160,6 +163,8 @@ while (epsilon > threshold) {
     cat("MSE = ", "\n")
     print(mse(ground_truth, beta))
     cat("sigma=", sigma1, "\n")
+    cat("time cost for iteration", iter,"\n")
+    print(proc.time() - ptm)
     flush.console()
   }
   
