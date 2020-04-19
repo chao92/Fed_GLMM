@@ -1,24 +1,58 @@
 require(tcltk)
 require(svMisc)
 require(svSocket)
-require(Metrics)
-options(digits = 15)
-MH <- function(A1, Z1, newZ1, K, burnin, n) {
- 
-    # update Z1
-    Z1 <- ifelse(log(runif(n)) > A1, Z1, newZ1)
-    #Z1_MH[, i] <- Z1
-    #cat("Z1_MH[,",i,"]=", Z1)
-    sum_t = 0
-    sum_t = sum(ifelse(Z1 == newZ1, yes = 1, 0))
-    # print("z1")
-    # print(Z1)
-    # print("newz1")
-    # print(newZ1)
-    # print("sum_t")
-    # print(sum_t)
-    return(list(Z1, sum_t))
+library(gmp)
+library(homomorpheR)
+load("~/Documents/Fed_GLMM/pub_key.RData")
+# parameters or computing coefficient loading from file
+load("~/Documents/Fed_GLMM/initial_parameters.RData")
+
+# debug 
+load("~/Documents/Fed_GLMM/priv_key.RData")
+
+BigzMean <- function(BigZ) {
+  sumZ <- as.bigz(0)
+  len <- length(BigZ)
+  for (idx in c(1:len)) {
+    sumZ <- add.bigz(sumZ, BigZ[idx])
+  }
+  mean_val <- sumZ/length(BigZ)
+  return (mean_val)
 }
+
+BigzMatrixMean <- function(BigZ) {
+  sumZ = as.bigz(0)
+  len = dim(BigZ)[1]
+  for (i in c(1:len)){
+    for (j in c(1:len)) {
+      sumZ <- add.bigz(sumZ, BigZ[i,j])
+    }
+  }
+  mean_val <- sumZ/(len*len)
+  return (mean_val)
+}
+
+server2Client <- function(BigZ, n) {
+  decrypted = priv_key$decrypt(BigZ)
+  decrypted = decrypted / Precision
+  decrypted = decrypted - n * Add_Big_Number
+  return (decrypted)
+}
+
+client2Server <- function(number){
+  number = number + Add_Big_Number
+  number = number * Precision
+  return (pub_key$encrypt(number))
+}
+
+MH <- function(A1, Z1, newZ1, K, burnin, n) {
+    # A1 is encrypted, Z1 and newZ1 is not enctyped
+    # update Z1
+    Z1 <- ifelse(client2Server(log(runif(n)) + (n_user+1) * Add_Big_Number) > A1, Z1, newZ1)
+    return(Z1)
+}
+
+
 # authenticat two clients with task ID and password
 u_username = ""
 usernames <- c("client1", "client2")
@@ -27,31 +61,15 @@ taskid <- "GLMMtest"
 passwords <- c("", "")
 portNumber <- 8999
 
-load("~/Downloads/Fed_GLMM/ground_truth_beta.RData")
-ground_truth = true_beta
-
-
-epsilon <- 1e10
-threshold <- 0.005
-sleep_time = 0.1
-# parameters or computing coefficient
-num_fe <- 100
-beta <- rnorm(100,0,0.001)
-sigma1 <- 0.4
-
 beta_list <- matrix(beta, num_fe, 1)
 sigma1_list <- c(sigma1)
 step <- 1
-K <- 10
-burnin <- 590
-#K <- 1000
-# burnin <- 300
-n = 10 # sampling size for Metropolis Hasting
 
-# for receiving Hessian matrix from clients
-H <- array(10^(-20), c(num_fe, num_fe, n_user))
-A1 <- array(10^(-20), c(1, n, n_user))
-f1 <- array(10^(-20), c(1, num_fe, n_user))
+# for receiving Hessian matrix f1 and beta from clients
+encrypted_H <- list(as.bigz(matrix(rep(0,num_fe*num_fe), num_fe, num_fe)), as.bigz(matrix(rep(0, num_fe*num_fe), num_fe, num_fe)))
+A1 <- list(as.bigz(rep(0, n)), as.bigz(rep(0, n)))
+encrypted_f1 <- list(as.bigz(matrix(rep(0,num_fe), num_fe)), as.bigz(matrix(rep(0,num_fe), num_fe)))
+beta_receiver <- list(rep(0, num_fe), rep(0, num_fe))
 
 # control the connections and the ordre of clients communication
 receive_ind <- 0
@@ -70,8 +88,6 @@ iter <- 0
 # epsilon controls whether the beta and sigma are converged
 while (epsilon > threshold) {
   
-  # the start time
-  ptm <- proc.time()
   # epi controls whether the beta is converged
   epi <- 1
   while (epi > 0.1) {
@@ -80,44 +96,48 @@ while (epsilon > threshold) {
     Z1_MH = array(0, dim = c(n, K + burnin))
     Z1 = rnorm(n, 0, sigma1)
     Z1_list_flag <- 0
-    sum_sum_t = 0
+    H_sum_flag <- 0
+    
     for (i in 1:(K + burnin)){
-      #cat("server i = ", i, "\n")
-      if (i%%200 == 0){
-          cat("server: i = ", i, "\n")
-      }
+      cat("server: i = ", i, "\n")
+      
+      #if (i%%200 == 0){
+      #    cat("server: i = ", i, "\n")
+      #}
       newZ1 = rnorm(n, mean = 0, sd = sigma1)
+      
       # each Z1_MH sampling need gather A1 from all clients
       for (receive_ind in 1:n_user) {
-        #cat("Waiting for client ID is", receive_ind)
-        while (mean(abs(A1[,,receive_ind]))==10^(-20)) {
-          #cat("waiting")
-          Sys.sleep(sleep_time)
+        cat("get A1 from client ", receive_ind, "\n")
+        while (BigzMean(abs(A1[[receive_ind]])) == 0) {
+          Sys.sleep(0.1)
         }
-        #cat("A1[,,",receive_ind,"] is ", A1[,,receive_ind], "\n")
+        
       }
       ready <- 0
-      # get A1 from clients, added elementwise and pass to MH function
-      A_sum = rowSums(A1,dims = 2)
+      # get encrypted A1 from clients, added elementwise and pass to MH function
+      A_sum = client2Server(as.bigz(rep(0,n)))
+      for (p in c(1:n)) {
+        for (q in c(1:n_user)){
+          A_sum[p] = A_sum[p] * A1[[q]][p]
+        }
+      }
       # get Z1_MH[,i]
-      Z1_sum_t = MH(A_sum, Z1, newZ1, K, burnin, n)
-      # print("z1")
-      # print(Z1_sum_t[[1]])
-      # print("sum_t")
-      # print(Z1_sum_t[[2]])
-      sum_t = Z1_sum_t[[2]]
-      sum_sum_t = sum_sum_t + sum_t
-      Z1 = Z1_sum_t[[1]]
-      Z1_MH[,i] = Z1
-      A1 <- array(10^ (-20), c(1, n, n_user))
+      Z1_MH[,i] = MH(A_sum, Z1, newZ1, K, burnin, n)
+      Z1 = Z1_MH[,i]
+      
+      #reset A1
+      A1 <- list(as.bigz(rep(0,n)), as.bigz(rep(0,n)))
       ready <- 1
-      #cat("server finish i=", i, "\n")
       receive_ind <- 0
     }
-    cat("SUM_SUM_t is", "\n")
-    print(sum_sum_t)
+    # Z1_list and sigma1 not encrypted
+    print("\nZ1_MH\n")
+    print(Z1_MH)
     Z1_list = Z1_MH[,-c(1:burnin)]
-    #cat("Z1_list in Server is ", Z1_list, "\n")
+    print("Server : Z1_list ")
+    print(Z1_list)
+    
     Z1_list_flag <- 1
     # update sigma1
     sigma1 = sqrt(mean(Z1_list ^ 2))
@@ -125,47 +145,69 @@ while (epsilon > threshold) {
     receive_ind <- 0
     # get from clients Hessian Matrix and first derivative
     for (receive_ind in 1:n_user) {
-      #cat("get from client ", receive_ind, "\n")
-      #cat("H is", H[,,receive_ind])
-      #cat("f1 is", f1[,,receive_ind])
-      while (mean(abs(H[,,receive_ind]))==10^(-20) || mean(abs(f1[,,receive_ind]))==10^(-20)) {
+      cat("get H and f1 from client ", receive_ind, "\n")
+      
+      while (BigzMatrixMean(encrypted_H[[receive_ind]]) == 0 || BigzMean(encrypted_f1[[receive_ind]]) == 0) {
         #cat("waiting")
-        Sys.sleep(sleep_time)
+        Sys.sleep(0.1)
       }
-      #cat("Received H is", H[,,receive_ind])
-      #cat("Received f1 is ", f1[,,receive_ind])
+      cat("decrypt Received H is",as.numeric(server2Client(encrypted_H[[receive_ind]], 1)) )
     }
     
-    H_sum = rowSums(H,dims = 2)
-    cat("H_Sum is", H_sum)
-    H_sum = matrix(H_sum, num_fe, num_fe)
-    H_inverse = solve(H_sum)
-    cat("H_inverse", H_inverse)
-    if (det(H_inverse) == 0) {
-      cat("H_inverse is 0", "\n")
-      break
+    # H_sum is not ready
+    sum_f1_flag = 0
+    H_sum_flag = 0
+    H_sum = client2Server(as.bigz(matrix(rep(0, num_fe*num_fe), num_fe, num_fe)))
+    
+    for (H_i in c(1:num_fe)) {
+      for (H_j in c(1:num_fe)){
+        for (H_k in c(1:n_user)){
+          # here * == + for homomorphic operation
+          H_sum[H_i,H_j] = H_sum[H_i,H_j] * encrypted_H[[H_k]][H_i,H_j]
+        }
+      }
     }
-   
-    f1 = rowSums(f1, dims = 2)
-    f1 = matrix(f1, nrow=num_fe, ncol=1)
-    # update beta
-    updata = H_inverse %*% f1
-    new_beta = beta + updata
+    print("before send out, check H_sum")
+    print(as.numeric(server2Client(H_sum, n_user+1)))
+    
+    # H_sum is ready
+    H_sum_flag = 1
+    
+    sum_f1 = client2Server(as.bigz(matrix(rep(0,num_fe), num_fe)))
+    for (i in c(1:n_user)){
+      # here * == + 
+      sum_f1 = sum_f1 * encrypted_f1[[i]]
+    }
+    # sum_f1 ready
+    sum_f1_flag = 1
+    
+    # Waiting client pull H_sum and sum_f1
+  
+    # get new_beta from client
+    for (receive_ind in 1:n_user) {
+      cat("get new_beta from client ", receive_ind, "\n")
+      while (mean(abs(beta_receiver[[receive_ind]])) == 0) {
+        Sys.sleep(0.1)
+      }
+      
+    }
+    print("server computing epi")
+    new_beta = beta_receiver[[1]]
     epi = max(abs(new_beta - beta))
     beta <- new_beta
     
-    # reset H and f1 for receiving the next iteration 
-    H <- array(10^(-20), c(num_fe, num_fe, n_user))
-    f1 <- array(10^(-20), c(1, num_fe, n_user))
+    print("server reset receiver variables")
+    # reset encrypted H and f1 for receiving the next iteration 
+    encrypted_H <- list(as.bigz(matrix(rep(0,num_fe*num_fe), num_fe, num_fe)), as.bigz(matrix(rep(0, num_fe*num_fe), num_fe, num_fe)))
+    encrypted_f1 <- list(as.bigz(matrix(rep(0,num_fe), num_fe)), as.bigz(matrix(rep(0,num_fe), num_fe)))
+    # reset beta_receiver
+    beta_receiver <- list(rep(0, num_fe), rep(0, num_fe))
+    
+    cat("Iteration=", iter, "finish \n")
     iter <- iter + 1
-    cat("Iteration=", iter, "\n")
-    cat("beta=", beta,"\n")
-    cat("MSE = ", "\n")
-    print(mse(ground_truth, beta))
+    cat("beta=")
+    print(beta)
     cat("sigma=", sigma1, "\n")
-    cat("time cost for iteration", iter,"\n")
-    print(proc.time() - ptm)
-    flush.console()
   }
   
   epsilon <-
@@ -175,7 +217,6 @@ while (epsilon > threshold) {
   sigma1_list[step + 1] <- sigma1
   step <- step + 1
   cat("Step is", step, "\n")
-  flush.console()
 }
 
 # print the final result
@@ -190,10 +231,10 @@ for (receive_ind in 1:n_user)
 {
   while (stop_connection[receive_ind] != 1)
   {
-    Sys.sleep(sleep_time)
+    Sys.sleep(0.1)
   }
 }
 
-Sys.sleep(sleep_time)
+Sys.sleep(1)
 stopSocketServer(port = portNumber)
-# endof Fed_GLMM_server
+# end of Fed_GLMM_server
